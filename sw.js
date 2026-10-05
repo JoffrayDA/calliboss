@@ -1,5 +1,5 @@
 // Cache hors ligne. Incrémente VERSION à chaque modification des fichiers.
-const VERSION = "calliboss-v7";
+const VERSION = "calliboss-v8";
 const FILES = ["./", "index.html", "style.css", "program.js", "firebase-config.js", "cloud.js", "app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 
 // GitHub Pages laisse le navigateur garder chaque fichier 10 min : sans `cache`, une mise à jour

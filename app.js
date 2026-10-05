@@ -1709,10 +1709,11 @@ function renderGroup(fetch = true) {
   const acc = Cloud.account;
   if (!acc) {
     view.innerHTML = `<section class="card ed">
-      <h3>👥 Rejoins tes potes</h3>
-      <p class="muted small">Un pseudo et un code à 4 chiffres, c'est tout. Pas de mail. Nouveau pseudo : le compte est créé. Pseudo existant : tu te reconnectes avec ton code.</p>
+      <h3>👤 Crée ton compte</h3>
+      <p class="muted small">D'abord ton compte : un pseudo et un code secret à 4 chiffres que tu inventes. Pas de mail. Nouveau pseudo : le compte est créé. Pseudo existant : tu te reconnectes avec ton code.</p>
+      <p class="muted small">Le code du groupe (6 caractères) se saisit juste après, pas ici.</p>
       <label class="ed-label">Pseudo<input type="text" id="lpseudo" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
-      <label class="ed-label">Code à 4 chiffres<input type="text" id="lpin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></label>
+      <label class="ed-label">Ton code secret (4 chiffres)<input type="text" id="lpin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••"></label>
       <button class="primary" id="login">Entrer</button>
       <p class="muted small">Tes données restent sur ton téléphone. Une fois dans un groupe, ses membres voient ta semaine, le détail de tes dernières séances et sorties, et ton poids (désactivable). Retiens ton code : sans mail, il ne peut pas être récupéré.</p>
     </section>`;
@@ -1771,7 +1772,7 @@ function renderGroup(fetch = true) {
     `<section class="card ed">
       <h3>${acc.groups.length ? "Un autre groupe" : "Ton premier groupe"}</h3>
       <p class="muted small">Rejoins avec le code d'un pote, ou crée un groupe et donne-lui le code.</p>
-      <div class="row"><input type="text" id="gcode" maxlength="6" placeholder="Code du groupe" autocapitalize="characters" autocomplete="off" spellcheck="false"><button class="primary small" id="gjoin">Rejoindre</button></div>
+      <div class="row"><input type="text" id="gcode" maxlength="20" placeholder="Code du groupe" autocapitalize="characters" autocomplete="off" spellcheck="false"><button class="primary small" id="gjoin">Rejoindre</button></div>
       <div class="row"><input type="text" id="gname" maxlength="40" placeholder="Nom d'un nouveau groupe" autocomplete="off"><button class="primary small" id="gcreate">Créer</button></div>
     </section>`;
 
@@ -1805,7 +1806,7 @@ function renderGroup(fetch = true) {
   if (!group) return;
 
   $("#ginvite").addEventListener("click", async () => {
-    const text = `Rejoins mon groupe « ${group.name} » sur Calliboss : ${location.origin}${location.pathname} → onglet Groupe, code ${group.code}`;
+    const text = `Rejoins mon groupe « ${group.name} » sur Calliboss : ${location.origin}${location.pathname} → onglet Groupe : crée ton compte (pseudo + 4 chiffres de ton choix), puis saisis le code du groupe ${group.code}`;
     try {
       if (navigator.share) await navigator.share({ text });
       else {

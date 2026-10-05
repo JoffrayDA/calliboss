@@ -137,7 +137,8 @@ const Cloud = (() => {
   }
 
   async function joinGroup(code, data) {
-    code = code.trim().toUpperCase();
+    // Le code s'affiche espacé : on tolère les espaces et tirets recopiés ou collés avec.
+    code = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!/^[A-Z0-9]{6}$/.test(code)) throw fail("Le code d'un groupe fait 6 caractères");
     if (account.groups.some((g) => g.code === code)) throw fail("Tu es déjà dans ce groupe");
     const { fs, db } = await sdk();
