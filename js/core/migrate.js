@@ -157,3 +157,32 @@ export function upgrade(data) {
   s.profile = Object.assign({ avatar: "" }, data.profile);
   return s;
 }
+
+// Rattrapage unique au moment où la V2 remplace la V1 : quelqu'un qui avait déjà ouvert la V2
+// puis continué à noter dans la V1 récupère les séances, sorties et pesées qui manquent.
+// Rien n'est écrasé : on n'ajoute que les jours absents. Renvoie le nombre de lignes ajoutées.
+export function topUpFromV1(state, v1) {
+  if (!isV1(v1)) return 0;
+  const m = migrateV1(v1);
+  let added = 0;
+  m.sessions.forEach((s) => {
+    if (state.sessions.some((x) => x.id === s.id || (x.date === s.date && x.activity === s.activity))) return;
+    state.sessions.push(s);
+    added++;
+  });
+  m.runs.forEach((r) => {
+    if (state.runs.some((x) => x.date === r.date)) return;
+    state.runs.push(r);
+    added++;
+  });
+  m.weights.forEach((w) => {
+    if (state.weights.some((x) => x.date === w.date)) return;
+    state.weights.push(w);
+    added++;
+  });
+  const byDate = (a, b) => a.date.localeCompare(b.date);
+  state.sessions.sort(byDate);
+  state.runs.sort(byDate);
+  state.weights.sort(byDate);
+  return added;
+}

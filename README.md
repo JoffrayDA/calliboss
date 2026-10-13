@@ -1,21 +1,21 @@
 # Calliboss
 
-App de suivi de calisthénie : séance du jour en checklist, progression par paliers, objectif hebdo, pesée du lundi, course + mobilité.
+App de suivi de calisthénie, course et muscu : la séance du jour, la progression par paliers, les objectifs de la semaine, le poids, et un groupe entre potes.
 
-Web app installable (PWA). Les données restent sur le téléphone. Un compte (pseudo + code à 4 chiffres, sans mail) sert uniquement à rejoindre des groupes entre potes.
+Web app installable (PWA), utilisable hors ligne. Les données vivent sur le téléphone. Un compte facultatif (pseudo + code secret, sans mail) garde une copie de secours privée et permet de rejoindre des groupes.
 
 - App : https://joffrayda.github.io/calliboss/
-- Programme de base dans `program.js` ; chacun peut créer le sien dans l'app (Réglages → Programme)
 
-## V2 (dossier `v2/`)
+## Versions
 
-Nouvelle version, à côté de la V1 tant qu'elle n'est pas validée : trois onglets (Aujourd'hui, Moi, Groupe), plusieurs programmes par activité, muscu avec charges, séries libres, ressenti, défi de groupe, copie de secours sur le compte.
+La V2 est l'app en ligne, à la racine : trois onglets (Aujourd'hui, Moi, Groupe), plusieurs programmes par activité, muscu avec charges, séries libres, ressenti, défi de groupe, copie de secours sur le compte.
 
-- Adresse une fois en ligne : https://joffrayda.github.io/calliboss/v2/
 - Au premier lancement, elle reprend les données de la V1 sans y toucher (clé `calliboss.v1` intacte).
-- Tests : `node --test v2/tests/core.test.js`
-- Avant de l'ouvrir aux groupes : coller `v2/firestore.rules` dans la console Firebase (compatibles avec la V1).
-- À chaque mise en ligne : incrémenter `VERSION` dans `v2/sw.js`.
+- L'ancienne version reste consultable : https://joffrayda.github.io/calliboss/v1/
+- Code : `js/core` (calculs, sans écran ni réseau), `js/store.js` (état), `js/cloud` (Firebase), `js/ui` (écrans).
+- Tests : `node --test tests/core.test.js`
+- Règles serveur : coller `firestore.rules` dans la console Firebase.
+- À chaque mise en ligne : incrémenter `VERSION` dans `sw.js`.
 
 ## Activer les groupes
 
@@ -28,4 +28,4 @@ Les groupes passent par Firebase (gratuit). Tant que `firebase-config.js` vaut `
 5. Paramètres du projet (roue crantée) → Vos applications → icône Web `</>` → enregistrer l'app → copier l'objet `firebaseConfig` dans `firebase-config.js`.
 6. Incrémenter `VERSION` dans `sw.js`, pousser.
 
-Ce qui part au serveur, et seulement pour les groupes rejoints : le pseudo, la semaine en cours, les 20 dernières séances et sorties, et le poids si le partage est coché. Tout le reste ne quitte pas le téléphone.
+Ce qui part au serveur, avec un compte : une copie de secours complète, lisible par son propriétaire seulement ; et, pour les groupes rejoints, le pseudo, la photo de profil, la semaine en cours, les 20 dernières séances et sorties, les programmes, et le poids si le partage est coché.

@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { migrateV1, upgrade, isV1, V1_PROGRAM_ID } from "../js/core/migrate.js";
+import { migrateV1, upgrade, isV1, topUpFromV1, V1_PROGRAM_ID } from "../js/core/migrate.js";
 import { draftFrom, sessionFrom, findProgram, copyProgram, programFromSession, levelOf, sanitizeProgram } from "../js/core/model.js";
 import { starterState, TEMPLATES, instantiate } from "../js/core/catalog.js";
 import { readyForNext, deltas, milestones, weekProgress, lastPerf, setsText } from "../js/core/stats.js";
@@ -190,13 +190,27 @@ test("semaine, course, partage", () => {
   assert.equal(sanitizeProgram({ name: "<b>x</b>", exercises: [{ name: 5, sets: "abc" }] }, "muscu").exercises[0].sets, 3);
 });
 
-test("hors ligne : tous les fichiers de v2/ sont dans la liste du service worker", () => {
+test("rattrapage V1 : ajoute les jours manquants sans rien écraser", () => {
+  const v1 = v1Fixture();
+  const s = migrateV1(v1);
+  s.sessions[0].note = "modifiée en V2";
+  v1.sessions.push({ date: "2026-10-14", mode: "parc", complete: true, results: { pull: { level: 1, home: false, sets: [5, 4, 4], extras: [] } }, bonus: [] });
+  v1.runs.push({ date: "2026-10-14", km: 5, sec: 2000, rpe: null, mobility: [] });
+  v1.weights.push({ date: "2026-10-19", kg: 78 });
+  assert.equal(topUpFromV1(s, v1), 3);
+  assert.equal(s.sessions.length, 4);
+  assert.equal(s.sessions[0].note, "modifiée en V2");
+  assert.equal(s.sessions[3].entries[0].sets[0].n, 5);
+  assert.equal(topUpFromV1(s, v1), 0);
+  assert.equal(topUpFromV1(s, null), 0);
+});
+
+test("hors ligne : tous les fichiers de l'app sont dans la liste du service worker", () => {
   const root = join(dirname(fileURLToPath(import.meta.url)), "..");
   const sw = readFileSync(join(root, "sw.js"), "utf8");
   const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
-  const files = walk(root)
-    .map((f) => relative(root, f).replace(/\\/g, "/"))
-    .filter((f) => !f.startsWith("tests/") && f !== "sw.js" && f !== "firestore.rules");
+  const files = [...["css", "fonts", "icons", "js"].flatMap((d) => walk(join(root, d))), ...["index.html", "manifest.webmanifest", "firebase-config.js"].map((f) => join(root, f))].map((f) => relative(root, f).replace(/\\/g, "/"));
+  assert.ok(files.length > 30);
   const missing = files.filter((f) => !sw.includes(`"${f}"`));
   assert.deepEqual(missing, []);
 });

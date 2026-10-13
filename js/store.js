@@ -3,7 +3,7 @@
 import { today } from "./core/dates.js";
 import { clone, copyProgram, draftFrom, draftFromSession, entryFor, emptyState, findExercise, findProgram, freeDraft, hasLadder, levelOf, newId, programFromSession, sessionFrom, setsCount } from "./core/model.js";
 import { starterState } from "./core/catalog.js";
-import { upgrade } from "./core/migrate.js";
+import { topUpFromV1, upgrade } from "./core/migrate.js";
 import { readyForNext } from "./core/stats.js";
 
 const KEY = "calliboss.v2";
@@ -23,10 +23,21 @@ function read(key) {
 }
 function load() {
   const v2 = upgrade(read(KEY));
-  if (v2) return v2;
+  if (v2) {
+    // Une seule fois : récupère ce qui a été noté dans la V1 après le premier passage en V2.
+    if (!v2.settings.v1TopUp) {
+      topUpFromV1(v2, read(KEY_V1));
+      v2.settings.v1TopUp = true;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(v2));
+      } catch (e) {}
+    }
+    return v2;
+  }
   const v1 = upgrade(read(KEY_V1));
   if (v1) {
     migrated = true;
+    v1.settings.v1TopUp = true;
     try {
       localStorage.setItem(KEY, JSON.stringify(v1));
     } catch (e) {}
