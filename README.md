@@ -7,6 +7,16 @@ Web app installable (PWA). Les données restent sur le téléphone. Un compte (p
 - App : https://joffrayda.github.io/calliboss/
 - Programme de base dans `program.js` ; chacun peut créer le sien dans l'app (Réglages → Programme)
 
+## V2 (dossier `v2/`)
+
+Nouvelle version, à côté de la V1 tant qu'elle n'est pas validée : trois onglets (Aujourd'hui, Moi, Groupe), plusieurs programmes par activité, muscu avec charges, séries libres, ressenti, défi de groupe, copie de secours sur le compte.
+
+- Adresse une fois en ligne : https://joffrayda.github.io/calliboss/v2/
+- Au premier lancement, elle reprend les données de la V1 sans y toucher (clé `calliboss.v1` intacte).
+- Tests : `node --test v2/tests/core.test.js`
+- Avant de l'ouvrir aux groupes : coller `v2/firestore.rules` dans la console Firebase (compatibles avec la V1).
+- À chaque mise en ligne : incrémenter `VERSION` dans `v2/sw.js`.
+
 ## Activer les groupes
 
 Les groupes passent par Firebase (gratuit). Tant que `firebase-config.js` vaut `null`, l'onglet Groupe est inactif et le reste de l'app marche comme avant.

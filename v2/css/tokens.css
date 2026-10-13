@@ -1,0 +1,44 @@
+/* Toutes les couleurs, typos et rayons de l'app. Aucun autre fichier ne définit de couleur en dur. */
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("../fonts/barlow-400.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url("../fonts/barlow-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("../fonts/barlow-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("../fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("../fonts/barlow-condensed-700.woff2") format("woff2"); }
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0c0f;
+  --surface: #15171c;
+  --raised: #1e2128;
+  --fg: #f5f6f7;
+  --muted: #8d939f;
+  --orange: #ff6a1f;
+  --orange-deep: #b8430a;
+  --sky: #6cc5ff;
+  --on-accent: #140a04;
+  --on-sky: #06202f;
+  --bad: #ff6b6b;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-block: 18px;
+  --r-ctl: 12px;
+}
+/* Thème clair : pour le plein soleil. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f2f3f5;
+    --surface: #ffffff;
+    --raised: #e9ebef;
+    --fg: #101216;
+    --muted: #5f6672;
+    --orange: #ea5a10;
+    --orange-deep: #a83f08;
+    --sky: #1487d4;
+    --on-accent: #ffffff;
+    --on-sky: #ffffff;
+    --bad: #d93b3b;
+    --scrim: rgba(0, 0, 0, 0.4);
+  }
+}

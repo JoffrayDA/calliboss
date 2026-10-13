@@ -1,0 +1,71 @@
+rules_version = '2';
+// Règles de la V2. À coller dans la console Firebase : Firestore Database → Règles.
+// Elles restent compatibles avec la V1 : les deux versions peuvent tourner en même temps.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isMember(code) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/groups/$(code)/members/$(request.auth.uid));
+    }
+
+    // Fiche privée du compte : pseudo et codes de ses groupes.
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+
+      // Copie de secours de toutes les données : lisible et modifiable par son propriétaire seulement.
+      match /private/{doc} {
+        allow read, write: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Un groupe se lit par son code (le code fait office d'invitation). Pas de liste.
+    match /groups/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40;
+      // Seul le propriétaire change la photo et l'objectif du défi. Nom et propriétaire ne bougent pas.
+      allow update: if signedIn()
+        && resource.data.owner == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photo', 'challenge'])
+        && request.resource.data.get('photo', '') is string
+        && request.resource.data.get('photo', '').size() <= 90000
+        && request.resource.data.get('challenge', 0) is number;
+
+      // Ce que chaque membre partage. Lisible par les membres du groupe seulement.
+      match /members/{uid} {
+        allow read: if isMember(code);
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && exists(/databases/$(database)/documents/groups/$(code));
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+
+      // Fil du groupe. L'auteur écrit son événement (sans toucher aux applaudissements) ;
+      // les autres membres ne peuvent modifier que leur propre clé dans `claps`.
+      match /feed/{id} {
+        allow read: if isMember(code);
+        allow create: if isMember(code)
+          && request.resource.data.uid == request.auth.uid
+          && id.matches('^' + request.auth.uid + '_.*')
+          && !('claps' in request.resource.data)
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 200;
+        allow update: if isMember(code) && (
+          (resource.data.uid == request.auth.uid
+            && request.resource.data.uid == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['claps'])
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 200)
+          ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claps'])
+            && request.resource.data.get('claps', {}).diff(resource.data.get('claps', {})).affectedKeys().hasOnly([request.auth.uid]))
+        );
+        allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      }
+    }
+  }
+}
