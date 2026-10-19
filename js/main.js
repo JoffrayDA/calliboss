@@ -75,7 +75,8 @@ document.addEventListener("change", (e) => {
 // Envoi au groupe et copie de secours : en différé, jamais bloquants, réessayés au prochain enregistrement.
 let syncTimer = null;
 function scheduleSync() {
-  if (!enabled || !Account.getAccount()) return;
+  // Téléphone vide : on n'écrase pas la copie de secours avec rien.
+  if (!enabled || !Account.getAccount() || store.isEmpty()) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     group.publishNow();

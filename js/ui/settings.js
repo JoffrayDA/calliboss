@@ -26,7 +26,7 @@ export function render(root, state) {
            <p class="small muted">Copie de secours automatique : ${acc.backupAt ? `dernière le ${esc(shortDate(ymd(new Date(acc.backupAt))))}` : "pas encore envoyée"}. Toi seul peux la lire.</p>
            <label class="check"><input type="checkbox" data-ch="set-sharew" ${state.settings.shareWeight ? "checked" : ""}><span class="box">${icon("check")}</span><span>Partager mon poids avec mes groupes</span></label>
            <div class="row wrap"><button class="btn quiet sm" data-act="set-restore">Récupérer ma copie</button><button class="btn quiet sm" data-act="set-logout">Se déconnecter</button></div>`
-        : `<p class="small muted">Sans compte, tes données ne sont que sur ce téléphone. Avec un compte, une copie de secours est gardée pour toi seul.</p><button class="btn quiet sm" data-act="tab" data-tab="group">Créer mon compte</button>`}</div>
+        : `<p class="small muted">Sans compte, tes données ne sont que sur ce téléphone. Avec un compte, une copie de secours est gardée pour toi seul.</p><button class="btn quiet sm" data-act="tab" data-tab="group">Se connecter</button>`}</div>
     <div class="block"><h2>Mes données</h2>
       <p class="small muted">Fichier à garder hors du téléphone. ${state.settings.lastExport ? `Dernier export : ${esc(shortDate(state.settings.lastExport))}.` : "Jamais exporté."}</p>
       <div class="row wrap"><button class="btn quiet sm" data-act="set-export">Exporter</button><label class="btn quiet sm file">Importer<input type="file" accept="application/json,.json" data-ch="set-import"></label></div>

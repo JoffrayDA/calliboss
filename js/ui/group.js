@@ -14,7 +14,9 @@ import { flame, groupArt, icon, kindIcon } from "./icons.js";
 
 const view = { code: null, info: null, members: null, feed: null, error: "", busy: false };
 
+// Téléphone vide (réinstallé, données effacées) : on n'écrase pas ce que le groupe a gardé de toi.
 export function publishNow() {
+  if (store.isEmpty()) return Promise.resolve(false);
   const state = store.getState();
   return Group.publish(JSON.stringify(summary(state)), feedEvents(state)).catch(() => false);
 }
@@ -63,8 +65,8 @@ export function teaser() {
 
 function loginForm() {
   return `<div class="block">
-    <h2>Crée ton compte</h2>
-    <p class="small muted">Un pseudo et un code secret que tu inventes. Pas de mail. Pseudo déjà pris par toi : tu te reconnectes avec ton code.</p>
+    <h2>Se connecter ou créer un compte</h2>
+    <p class="small muted">Déjà un compte : ton pseudo et ton code, puis Entrer. Sinon, invente un pseudo et un code secret. Pas de mail.</p>
     <label class="label">Pseudo<input class="text" id="lpseudo" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
     <label class="label">Code secret (6 chiffres ou plus pour un nouveau compte)<input class="text" id="lpin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••••"></label>
     <button class="btn main wide" data-act="g-login">Entrer</button>

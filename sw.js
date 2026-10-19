@@ -1,6 +1,6 @@
 // Cache hors ligne. Incrémente VERSION à chaque mise en ligne.
 // Toute la liste des fichiers de l'app est ici ; tests/core.test.js vérifie qu'il n'en manque aucun.
-const VERSION = "calliboss2-v2";
+const VERSION = "calliboss2-v3";
 const FILES = [
   "./",
   "index.html",
