@@ -11,6 +11,7 @@ const KEY_V1 = "calliboss.v1"; // jamais modifiée ni supprimée : c'est la sauv
 
 export let saveFailed = false;
 export let migrated = false; // vrai si cet état vient d'être repris de la V1 à ce lancement
+export let fromDisk = false; // vrai si cet état a été relu du téléphone (et non créé vide au lancement)
 const subscribers = [];
 let state = load();
 
@@ -24,6 +25,7 @@ function read(key) {
 function load() {
   const v2 = upgrade(read(KEY));
   if (v2) {
+    fromDisk = true;
     // Une seule fois : récupère ce qui a été noté dans la V1 après le premier passage en V2.
     if (!v2.settings.v1TopUp) {
       topUpFromV1(v2, read(KEY_V1));
@@ -37,6 +39,7 @@ function load() {
   const v1 = upgrade(read(KEY_V1));
   if (v1) {
     migrated = true;
+    fromDisk = true;
     v1.settings.v1TopUp = true;
     try {
       localStorage.setItem(KEY, JSON.stringify(v1));
@@ -365,6 +368,16 @@ export function markExported() {
 export function replaceAll(data) {
   const next = upgrade(data);
   if (!next) return false;
+  state = next;
+  commit();
+  return true;
+}
+// État venu du compte : remplace tout, sauf la séance et la sortie en cours sur ce téléphone.
+export function applyRemote(data) {
+  const next = upgrade(data);
+  if (!next) return false;
+  next.draft = state.draft;
+  next.runDraft = state.runDraft;
   state = next;
   commit();
   return true;

@@ -3,6 +3,7 @@ import * as store from "./store.js";
 import { streak } from "./core/stats.js";
 import { enabled } from "./cloud/firebase.js";
 import * as Account from "./cloud/account.js";
+import * as Sync from "./cloud/sync.js";
 import { $, closeSheet, nav } from "./ui/dom.js";
 import { flame, icon } from "./ui/icons.js";
 import * as today from "./ui/today.js";
@@ -38,11 +39,24 @@ const actions = Object.assign({}, ...modules.map((m) => m.actions || {}));
 const inputs = Object.assign({}, ...modules.map((m) => m.inputs || {}));
 const changes = Object.assign({}, ...modules.map((m) => m.changes || {}));
 actions.tab = (el) => nav.go(el.dataset.tab);
+// Sans compte, l'app demande d'abord de se connecter : les données vivent sur le compte.
+// « Plus tard » ne vaut que jusqu'à la fermeture de l'app.
+let later = false;
+actions["acc-later"] = () => {
+  later = true;
+  draw();
+};
 
 let route = { name: "today", params: {} };
 
 function draw() {
   const state = store.getState();
+  if (enabled && !Account.getAccount() && !later) {
+    $("#streak").innerHTML = "";
+    $("#tabs").innerHTML = "";
+    group.renderGate($("#view"));
+    return;
+  }
   const screen = SCREENS[route.name] || SCREENS.today;
   const n = streak(state);
   $("#streak").innerHTML = n > 0 ? `${flame()}<b>${n}</b> sem. d'affilée` : "";
@@ -72,17 +86,20 @@ document.addEventListener("change", (e) => {
   if (el.dataset && el.dataset.ch && changes[el.dataset.ch]) changes[el.dataset.ch](el, e);
 });
 
-// Envoi au groupe et copie de secours : en différé, jamais bloquants, réessayés au prochain enregistrement.
+// Envoi au compte et au groupe : en différé, jamais bloquants, réessayés au prochain enregistrement.
 let syncTimer = null;
-function scheduleSync() {
-  // Téléphone vide : on n'écrase pas la copie de secours avec rien.
-  if (!enabled || !Account.getAccount() || store.isEmpty()) return;
+function scheduleSync(delay = 2500) {
+  if (!enabled || !Account.getAccount()) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    group.publishNow();
-    Account.saveBackup(JSON.stringify(store.getState())).catch(() => {});
-  }, 2500);
+    Sync.now().then(() => group.publishNow());
+  }, delay);
 }
+window.addEventListener("online", () => scheduleSync(0));
+// L'état de la synchro s'affiche dans les réglages.
+Sync.onChange(() => {
+  if (route.name === "settings" && $("#scrim").hidden) draw();
+});
 
 store.subscribe((state, silent) => {
   scheduleSync();
@@ -101,8 +118,9 @@ document.addEventListener("visibilitychange", () => {
 if (enabled && Account.getAccount())
   Account.sync()
     .then(() => {
-      scheduleSync();
-      if (route.name === "group") draw();
+      // Relit le compte tout de suite : un autre téléphone a pu noter des choses.
+      scheduleSync(0);
+      if (!Account.getAccount() || route.name === "group") draw();
     })
     .catch(() => {});
 

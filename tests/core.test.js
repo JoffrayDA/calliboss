@@ -11,6 +11,7 @@ import { readyForNext, deltas, milestones, weekProgress, lastPerf, setsText } fr
 import { runLimit, runWarnings } from "../js/core/run.js";
 import { summary, feedEvents, readMember, challenge, validImage, AVATAR_MAX } from "../js/core/share.js";
 import { mondayOf, addDays, today } from "../js/core/dates.js";
+import { toDocs, fromDocs, merge3, firstMerge, diff, sigs } from "../js/core/docs.js";
 
 // État V1 réaliste : paliers montés, transition, palier en plus, bonus, variante maison, course, poids, brouillon.
 function v1Fixture() {
@@ -213,4 +214,36 @@ test("hors ligne : tous les fichiers de l'app sont dans la liste du service work
   assert.ok(files.length > 30);
   const missing = files.filter((f) => !sw.includes(`"${f}"`));
   assert.deepEqual(missing, []);
+});
+
+test("compte : fiches aller-retour, fusion sans perte, téléphone vide sans effet", () => {
+  const s = migrateV1(v1Fixture());
+  const docs = toDocs(s);
+  assert.ok(docs.meta && docs.profile);
+  assert.equal(Object.keys(docs).filter((id) => id.startsWith("ses_")).length, s.sessions.length);
+  const back = fromDocs(docs, s);
+  assert.deepEqual(back, s);
+
+  // Fusion à trois : chacun garde ses changements, une suppression ailleurs est suivie.
+  const base = sigs(docs);
+  const local = { ...docs, ses_new: '{"id":"new","date":"2026-10-19"}' };
+  const server = { ...docs, run_x: '{"date":"2026-10-18","km":5}' };
+  delete server["wgt_2026-09-21"];
+  const m = merge3(base, local, server);
+  assert.ok(m.ses_new && m.run_x);
+  assert.equal(m["wgt_2026-09-21"], undefined);
+  // Supprimé ici, modifié ailleurs : gardé.
+  const l2 = { ...docs };
+  delete l2["wgt_2026-10-12"];
+  const s2 = { ...docs, "wgt_2026-10-12": '{"date":"2026-10-12","kg":78}' };
+  assert.equal(merge3(base, l2, s2)["wgt_2026-10-12"], s2["wgt_2026-10-12"]);
+  // Supprimé ici, inchangé ailleurs : envoyé comme suppression.
+  assert.deepEqual(diff(base, l2), { put: [], del: ["wgt_2026-10-12"] });
+
+  // Premier échange : téléphone neuf → tout vient du compte ; rien n'est jamais supprimé.
+  const fresh = toDocs(starterState());
+  assert.deepEqual(firstMerge(fresh, docs, true), docs);
+  assert.deepEqual(firstMerge(docs, {}, false), docs);
+  const both = firstMerge({ ...fresh, ses_mine: "{}" }, docs, false);
+  assert.ok(both.ses_mine && Object.keys(docs).every((id) => both[id] === docs[id]));
 });

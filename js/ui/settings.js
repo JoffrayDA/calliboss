@@ -1,12 +1,29 @@
 // Réglages : mes activités, mes objectifs, mon compte, mes données.
-import { shortDate, today, ymd } from "../core/dates.js";
+import { shortDate, today } from "../core/dates.js";
 import { ACTIVITIES } from "../core/catalog.js";
 import { goalOf } from "../core/stats.js";
 import * as store from "../store.js";
-import { enabled, message } from "../cloud/firebase.js";
+import { enabled } from "../cloud/firebase.js";
 import * as Account from "../cloud/account.js";
+import * as Sync from "../cloud/sync.js";
 import { esc, nav, toast } from "./dom.js";
 import { icon } from "./icons.js";
+
+// Où en sont tes données : sur le compte, en attente, ou bloquées (avec la raison).
+function syncLine() {
+  const n = Sync.pending();
+  const wait = n ? `${n} modification${n > 1 ? "s" : ""} pas encore sur ton compte.` : "";
+  const st = Sync.status;
+  if (st.state === "busy") return `<p class="small muted">Synchronisation…</p>`;
+  if (st.state === "error") return `<p class="small bad">Échec de l'envoi : ${esc(st.error)}. ${wait} Elles restent sur ce téléphone en attendant.</p>`;
+  if (st.state === "offline") return `<p class="small muted">Hors ligne. ${wait || "Rien en attente."} Envoi au retour du réseau.</p>`;
+  if (n) return `<p class="small muted">${wait}</p>`;
+  if (st.state === "ok") {
+    const t = new Date(st.at);
+    return `<p class="small muted">Tout est sur ton compte. Dernier échange à ${t.getHours()}h${String(t.getMinutes()).padStart(2, "0")}.</p>`;
+  }
+  return `<p class="small muted">Pas encore d'échange avec ton compte depuis l'ouverture de l'app.</p>`;
+}
 
 export function render(root, state) {
   const acc = Account.getAccount();
@@ -23,14 +40,14 @@ export function render(root, state) {
         ? `<p class="small muted">Les comptes ne sont pas activés sur cette version.</p>`
         : acc
         ? `<p>Connecté : <b>${esc(acc.pseudo)}</b></p>
-           <p class="small muted">Copie de secours automatique : ${acc.backupAt ? `dernière le ${esc(shortDate(ymd(new Date(acc.backupAt))))}` : "pas encore envoyée"}. Toi seul peux la lire.</p>
+           ${syncLine()}
            <label class="check"><input type="checkbox" data-ch="set-sharew" ${state.settings.shareWeight ? "checked" : ""}><span class="box">${icon("check")}</span><span>Partager mon poids avec mes groupes</span></label>
-           <div class="row wrap"><button class="btn quiet sm" data-act="set-restore">Récupérer ma copie</button><button class="btn quiet sm" data-act="set-logout">Se déconnecter</button></div>`
-        : `<p class="small muted">Sans compte, tes données ne sont que sur ce téléphone. Avec un compte, une copie de secours est gardée pour toi seul.</p><button class="btn quiet sm" data-act="tab" data-tab="group">Se connecter</button>`}</div>
+           <div class="row wrap"><button class="btn quiet sm" data-act="set-sync">Synchroniser</button><button class="btn quiet sm" data-act="set-logout">Se déconnecter</button></div>`
+        : `<p class="small bad">Sans compte, tes données ne sont que sur ce téléphone : elles disparaissent si l'app est supprimée.</p><button class="btn quiet sm" data-act="tab" data-tab="group">Se connecter</button>`}</div>
     <div class="block"><h2>Mes données</h2>
-      <p class="small muted">Fichier à garder hors du téléphone. ${state.settings.lastExport ? `Dernier export : ${esc(shortDate(state.settings.lastExport))}.` : "Jamais exporté."}</p>
+      <p class="small muted">${acc ? "Pas nécessaire avec un compte. Un fichier si tu veux une copie à toi." : `Fichier à garder hors du téléphone. ${state.settings.lastExport ? `Dernier export : ${esc(shortDate(state.settings.lastExport))}.` : "Jamais exporté."}`}</p>
       <div class="row wrap"><button class="btn quiet sm" data-act="set-export">Exporter</button><label class="btn quiet sm file">Importer<input type="file" accept="application/json,.json" data-ch="set-import"></label></div>
-      <button class="link bad" data-act="set-reset">Tout effacer sur ce téléphone</button></div>
+      <button class="link bad" data-act="set-reset">${acc ? "Tout effacer, sur ce téléphone et sur mon compte" : "Tout effacer sur ce téléphone"}</button></div>
   </section>`;
 }
 
@@ -75,26 +92,30 @@ export const actions = {
     toast("Fichier exporté : garde-le hors du téléphone");
   },
   "set-reset"() {
-    if (!confirm("Effacer toutes les données de ce téléphone (séances, paliers, poids, programmes) ? La copie sur ton compte, si tu en as une, n'est pas effacée tout de suite : elle sera remplacée au prochain enregistrement.")) return;
+    const acc = Account.getAccount();
+    const what = acc ? "sur ce téléphone et sur ton compte" : "de ce téléphone";
+    if (!confirm(`Effacer toutes tes données ${what} (séances, sorties, paliers, poids, programmes) ? Impossible à annuler.`)) return;
+    if (acc) Sync.allowWipe();
     store.resetAll();
     toast("Données effacées");
   },
-  async "set-restore"() {
-    try {
-      toast("Un instant…");
-      const backup = await Account.loadBackup();
-      if (!backup) return toast("Aucune copie sur ton compte");
-      if (!confirm(`Remplacer les données de ce téléphone par la copie du ${shortDate(ymd(new Date(backup.savedAt)))} ?`)) return;
-      toast(store.replaceAll(backup.data) ? "Données récupérées" : "Copie illisible");
-    } catch (e) {
-      toast(message(e));
-    }
+  async "set-sync"() {
+    await Sync.now(true);
+    toast(Sync.status.state === "ok" ? "Tout est sur ton compte" : "Échange impossible pour l'instant");
   },
   async "set-logout"() {
-    if (!confirm("Te déconnecter ? Tes séances restent sur ce téléphone et tu restes membre de tes groupes.")) return;
+    toast("Un instant…");
+    await Sync.now();
+    const n = Sync.pending();
+    const msg = n
+      ? `${n} modification${n > 1 ? "s" : ""} pas encore envoyée${n > 1 ? "s" : ""} sur ton compte ser${n > 1 ? "ont" : "a"} perdue${n > 1 ? "s" : ""}. Te déconnecter quand même ?`
+      : "Te déconnecter ? Tes données restent sur ton compte et quittent ce téléphone. Tu restes membre de tes groupes.";
+    if (!confirm(msg)) return;
     try {
       await Account.logout();
     } catch (e) {}
-    nav.redraw();
+    Sync.forget();
+    store.resetAll();
+    nav.go("today");
   },
 };

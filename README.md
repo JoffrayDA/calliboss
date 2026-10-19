@@ -2,7 +2,7 @@
 
 App de suivi de calisthénie, course et muscu : la séance du jour, la progression par paliers, les objectifs de la semaine, le poids, et un groupe entre potes.
 
-Web app installable (PWA), utilisable hors ligne. Les données vivent sur le téléphone. Un compte facultatif (pseudo + code secret, sans mail) garde une copie de secours privée et permet de rejoindre des groupes.
+Web app installable (PWA), utilisable hors ligne. Les données vivent sur le compte (pseudo + code secret, sans mail) : une fiche Firestore par séance, sortie, pesée et programme, lisible par son propriétaire seulement. Le téléphone en garde une copie pour marcher sans réseau et envoie ses changements dès qu'il peut (`js/cloud/sync.js`).
 
 - App : https://joffrayda.github.io/calliboss/
 

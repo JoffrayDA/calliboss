@@ -1,6 +1,6 @@
 // Onglet Groupe : défi commun de la semaine, où en est chacun, fil avec applaudissements.
 // Tout ce qui vient des autres membres est échappé à l'affichage.
-import { prettyDate, shortDate, ymd } from "../core/dates.js";
+import { prettyDate, ymd } from "../core/dates.js";
 import { activity } from "../core/catalog.js";
 import { sanitizeProgram } from "../core/model.js";
 import { fmtKm, fmtPace } from "../core/run.js";
@@ -9,6 +9,7 @@ import * as store from "../store.js";
 import { enabled, message } from "../cloud/firebase.js";
 import * as Account from "../cloud/account.js";
 import * as Group from "../cloud/group.js";
+import * as Sync from "../cloud/sync.js";
 import { $, avatar, closeSheet, esc, fr, nav, openSheet, plural, shrinkImage, toast } from "./dom.js";
 import { flame, groupArt, icon, kindIcon } from "./icons.js";
 
@@ -70,8 +71,16 @@ function loginForm() {
     <label class="label">Pseudo<input class="text" id="lpseudo" maxlength="20" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
     <label class="label">Code secret (6 chiffres ou plus pour un nouveau compte)<input class="text" id="lpin" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••••"></label>
     <button class="btn main wide" data-act="g-login">Entrer</button>
-    <p class="small muted">Avec un compte : une copie de secours de tes données est gardée pour toi seul, et tu peux rejoindre un groupe. Les membres d'un groupe voient ta semaine, tes dernières séances et sorties, tes programmes, et ton poids si tu le veux. Retiens ton code : sans mail, il ne peut pas être récupéré.</p>
+    <p class="small muted">Tes séances, sorties, pesées et programmes sont enregistrés sur ton compte, lisibles par toi seul : tu les retrouves sur n'importe quel téléphone. Les membres d'un groupe voient ta semaine, tes dernières séances et sorties, tes programmes, et ton poids si tu le veux. Retiens ton code : sans mail, il ne peut pas être récupéré.</p>
   </div>`;
+}
+
+// Écran d'accueil sans compte : l'app ne s'ouvre qu'une fois connecté, sauf « plus tard ».
+export function renderGate(root) {
+  root.innerHTML = `<section class="screen">
+    ${loginForm()}
+    <button class="link" data-act="acc-later">Plus tard : mes données restent seulement sur ce téléphone</button>
+  </section>`;
 }
 
 function memberRow(m, me) {
@@ -199,11 +208,9 @@ export const actions = {
     run(async () => {
       const a = await Account.login($("#lpseudo").value, $("#lpin").value.trim(), (name) => confirm(`Pas de compte « ${name} » avec ce code.\n\nCréer ce pseudo avec ce code ?`));
       if (!a) return null;
-      // Téléphone vide : on propose de récupérer la copie de secours du compte.
-      if (store.isEmpty()) {
-        const backup = await Account.loadBackup().catch(() => null);
-        if (backup && confirm(`Une copie de tes données du ${shortDate(ymd(new Date(backup.savedAt)))} existe sur ton compte. La récupérer sur ce téléphone ?`)) store.replaceAll(backup.data);
-      }
+      // Récupère tout ce qui est sur le compte et y envoie ce qui n'est que sur ce téléphone.
+      // En cas d'échec, l'erreur s'affiche dans les réglages et l'échange est retenté au prochain enregistrement.
+      await Sync.now(true);
       publishNow();
       return a;
     }, "Connecté");

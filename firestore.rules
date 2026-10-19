@@ -19,6 +19,15 @@ service cloud.firestore {
       match /private/{doc} {
         allow read, write: if signedIn() && request.auth.uid == uid;
       }
+
+      // Tes données, une fiche par séance, sortie, pesée, programme (voir js/cloud/sync.js).
+      // Lisibles et modifiables par leur propriétaire seulement.
+      match /data/{doc} {
+        allow read, delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.v is string
+          && request.resource.data.v.size() <= 500000;
+      }
     }
 
     // Un groupe se lit par son code (le code fait office d'invitation). Pas de liste.

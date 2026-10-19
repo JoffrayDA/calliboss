@@ -1,12 +1,10 @@
-// Compte (pseudo + code secret, sans mail) et copie de secours privée de l'état.
+// Compte : pseudo + code secret, sans mail. Les données du compte passent par sync.js.
 import { enabled, sdk, fail } from "./firebase.js";
-import { hash } from "../core/share.js";
 
 // Même clé que la V1 : connecté dans l'une, connecté dans l'autre.
 const ACCOUNT_KEY = "calliboss.account";
-const BACKUP_MAX = 900000; // Firestore refuse un document de plus de 1 Mo
 
-// Compte connu de ce téléphone : { uid, pseudo, groups: [{ code, name }], sent2, sentFeed, backupHash, backupAt }
+// Compte connu de ce téléphone : { uid, pseudo, groups: [{ code, name }], sent2, sentFeed }
 let account = null;
 try {
   account = JSON.parse(localStorage.getItem(ACCOUNT_KEY));
@@ -96,21 +94,7 @@ async function signedIn() {
   return s;
 }
 
-// Copie de secours : l'état complet, lisible par ce compte seulement. Envoyée seulement s'il a changé.
-// Renvoie "sent", "same", "big" (trop gros, non envoyé) ou "off" (pas connecté).
-export async function saveBackup(json) {
-  if (!enabled || !account) return "off";
-  if (json.length > BACKUP_MAX) return "big";
-  const h = hash(json) + "." + json.length;
-  if (account.backupHash === h) return "same";
-  const s = await signedIn();
-  if (!s) return "off";
-  await s.fs.setDoc(s.fs.doc(s.db, "users", account.uid, "private", "backup"), { state: json, savedAt: Date.now() });
-  account.backupHash = h;
-  account.backupAt = Date.now();
-  keep();
-  return "sent";
-}
+// Ancienne copie de secours (avant les fiches de sync.js), relue une fois pour remplir un compte vide.
 // Renvoie { data, savedAt } ou null s'il n'y a pas de copie.
 export async function loadBackup() {
   const s = await signedIn();
