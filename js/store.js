@@ -1,7 +1,7 @@
 // État unique de l'app. Seul ce fichier modifie l'état et écrit dans localStorage.
 // Une action modifie, enregistre, puis prévient les abonnés (écran, envoi au groupe, copie de secours).
 import { today } from "./core/dates.js";
-import { clone, copyProgram, draftFrom, draftFromSession, entryFor, emptyState, findExercise, findProgram, freeDraft, hasLadder, levelOf, newId, programFromSession, sessionFrom, setsCount } from "./core/model.js";
+import { clone, copyProgram, draftFrom, draftFromSession, entryFor, emptyState, extrasOf, findExercise, findProgram, freeDraft, hasLadder, levelOf, newId, programFromSession, sessionFrom, setsCount } from "./core/model.js";
 import { starterState } from "./core/catalog.js";
 import { topUpFromV1, upgrade } from "./core/migrate.js";
 import { readyForNext } from "./core/stats.js";
@@ -286,43 +286,69 @@ export function deleteProgram(id) {
   commit();
 }
 
-// ---------- Paliers : toujours sur ton geste, un pas à la fois ----------
-export function stepMove(exId, dir) {
+// ---------- Paliers : toujours sur ton geste ----------
+// Séance en cours : refait les lignes de cet exercice (palier actuel puis paliers en plus).
+// Les séries déjà notées sont gardées ; une ligne notée qui n'est plus prévue reste, en plus.
+// Une ligne vide qui n'est plus prévue disparaît.
+function resyncDraft(ex) {
+  const d = state.draft;
+  if (!d || !d.entries.some((e) => e.exId === ex.id && !e.tag) || d.programId == null) return;
+  const p = program();
+  const home = d.place === "maison";
+  const n = p ? setsCount(p, ex) : 3;
+  const mine = d.entries.filter((e) => e.exId === ex.id);
+  const levels = [levelOf(state, ex), ...extrasOf(state, ex)];
+  const wanted = levels.map((j, k) => {
+    const fresh = entryFor(ex, j, home, n, k ? "extra" : "");
+    const kept = mine.find((e) => e.stepId === fresh.stepId);
+    if (kept) Object.assign(fresh, { sets: kept.sets, note: kept.note || "" });
+    return fresh;
+  });
+  const ids = new Set(wanted.map((e) => e.stepId));
+  const others = mine.filter((e) => !ids.has(e.stepId) && e.sets.some((x) => x.n > 0)).map((e) => ({ ...e, tag: "extra" }));
+  const at = d.entries.findIndex((e) => e.exId === ex.id);
+  d.entries = d.entries.filter((e) => e.exId !== ex.id);
+  d.entries.splice(at, 0, ...wanted, ...others);
+}
+// Choisit le palier actuel d'un exercice, n'importe lequel. Les paliers en plus restent, sauf celui choisi.
+export function stepTo(exId, to) {
   const ex = findExercise(state, exId);
-  if (!ex || !hasLadder(ex)) return null;
-  const to = levelOf(state, ex) + (dir > 0 ? 1 : -1);
-  if (to < 0 || to >= ex.ladder.length) return null;
+  if (!ex || !hasLadder(ex) || to < 0 || to >= ex.ladder.length) return null;
+  const from = levelOf(state, ex);
+  if (to === from) return null;
   const step = ex.ladder[to];
-  state.progress[exId] = { step: step.id, transition: null };
-  state.progressLog.push({ date: today(), exId, stepId: step.id, name: step.name, dir: dir > 0 ? 1 : -1 });
+  const also = extrasOf(state, ex).map((j) => ex.ladder[j].id).filter((id) => id !== step.id && id !== ex.ladder[from].id);
+  state.progress[exId] = { step: step.id, transition: null, also };
+  state.progressLog.push({ date: today(), exId, stepId: step.id, name: step.name, dir: to > from ? 1 : -1 });
   state.proposals = state.proposals.filter((id) => id !== exId);
-  if (state.draft && state.draft.entries.some((e) => e.exId === exId)) {
-    // Séance en cours : on repart du programme pour cet exercice, les séries notées au nouveau palier sont gardées.
-    const p = program();
-    const kept = state.draft.entries.find((e) => e.exId === exId && e.stepId === step.id);
-    const fresh = entryFor(ex, to, state.draft.place === "maison", p ? setsCount(p, ex) : 3);
-    if (kept) fresh.sets = kept.sets;
-    const others = state.draft.entries.filter((e) => e.exId === exId && e.stepId !== step.id && e.sets.some((x) => x.n > 0)).map((e) => ({ ...e, tag: "extra" }));
-    const at = state.draft.entries.findIndex((e) => e.exId === exId);
-    state.draft.entries = state.draft.entries.filter((e) => e.exId !== exId);
-    state.draft.entries.splice(at, 0, fresh, ...others);
-  }
+  resyncDraft(ex);
   commit();
   return step;
+}
+export function stepMove(exId, dir) {
+  const ex = findExercise(state, exId);
+  return ex && hasLadder(ex) ? stepTo(exId, levelOf(state, ex) + (dir > 0 ? 1 : -1)) : null;
+}
+// Faire un palier en plus à chaque séance (ou arrêter).
+export function setAlso(exId, level, on) {
+  const ex = findExercise(state, exId);
+  if (!ex || !hasLadder(ex) || !ex.ladder[level]) return;
+  const lvl = levelOf(state, ex);
+  if (level === lvl) return;
+  const ids = new Set(extrasOf(state, ex).map((j) => ex.ladder[j].id));
+  if (on) ids.add(ex.ladder[level].id);
+  else ids.delete(ex.ladder[level].id);
+  state.progress[exId] = { step: ex.ladder[lvl].id, transition: null, also: [...ids] };
+  if (on && level === lvl + 1) state.proposals = state.proposals.filter((id) => id !== exId);
+  resyncDraft(ex);
+  commit();
 }
 // Y aller progressivement : le palier suivant est ajouté en plus à chaque séance.
 export function setTransition(exId, on) {
   const ex = findExercise(state, exId);
   if (!ex || !hasLadder(ex)) return;
-  const lvl = levelOf(state, ex);
-  state.progress[exId] = { step: ex.ladder[lvl].id, transition: on ? today() : null };
+  setAlso(exId, levelOf(state, ex) + 1, on);
   state.proposals = state.proposals.filter((id) => id !== exId);
-  const d = state.draft;
-  if (on && d && lvl < ex.ladder.length - 1 && d.entries.some((e) => e.exId === exId) && !d.entries.some((e) => e.exId === exId && e.stepId === ex.ladder[lvl + 1].id)) {
-    const p = program();
-    const at = d.entries.map((e) => e.exId).lastIndexOf(exId);
-    d.entries.splice(at + 1, 0, entryFor(ex, lvl + 1, d.place === "maison", p ? setsCount(p, ex) : 3, "extra"));
-  }
   commit();
 }
 export function dismissProposal(exId) {

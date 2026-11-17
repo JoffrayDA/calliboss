@@ -1,7 +1,7 @@
 // Écran Aujourd'hui : la semaine, une carte par activité, le programme prêt à démarrer.
 import { addDays, ago, dayNum, longDate, mondayOf, prettyDate, today } from "../core/dates.js";
 import { activity } from "../core/catalog.js";
-import { findExercise, findProgram, levelOf, programsOf } from "../core/model.js";
+import { extrasOf, findExercise, findProgram, levelOf, programsOf } from "../core/model.js";
 import { datesOf, doneInWeek, goalOf } from "../core/stats.js";
 import { RUN, fmtKm, runLimit } from "../core/run.js";
 import * as store from "../store.js";
@@ -30,7 +30,7 @@ function weekCard(state) {
   return `<div class="block"><div class="counts">${counts}</div><div class="week">${days}</div></div>`;
 }
 
-// Proposition de palier suivant : l'app propose, tu décides.
+// Proposition de palier suivant : l'app propose, tu décides (remplacer, faire les deux, ou attendre).
 function proposals(state) {
   return state.proposals
     .map((exId) => {
@@ -39,16 +39,23 @@ function proposals(state) {
       const lvl = levelOf(state, ex);
       const next = ex.ladder[lvl + 1];
       if (!next) return "";
-      const inTransition = !!(state.progress[exId] && state.progress[exId].transition);
+      const cur = ex.ladder[lvl].name;
+      const both = extrasOf(state, ex).includes(lvl + 1);
+      const range = `${next.min} à ${next.max} ${next.unit === "s" ? "s" : "reps"}`;
       return `<div class="block accent">
         <div class="row">${icon("steps")}<h2 class="grow">${esc(ex.name)} : prêt pour la suite ?</h2></div>
-        <p class="small">Tu as fait le maximum partout, deux séances de suite, en ${esc(ex.ladder[lvl].name)}. Palier suivant : <b>${esc(next.name)}</b> (${next.min} à ${next.max} ${next.unit === "s" ? "s" : "reps"}).</p>
-        <div class="row wrap">
-          <button class="btn main sm" data-act="prop-up" data-ex="${exId}">Passer</button>
-          ${inTransition ? "" : `<button class="btn quiet sm" data-act="prop-trans" data-ex="${exId}">Progressivement</button>`}
-          <button class="btn quiet sm" data-act="prop-later" data-ex="${exId}">Pas encore</button>
-        </div>
-        ${inTransition ? "" : `<p class="small muted">Progressivement : tu gardes ${esc(ex.ladder[lvl].name)} et ${esc(next.name)} s'ajoute en plus à chaque séance.</p>`}
+        <p class="small">Maximum partout, deux séances de suite, en ${esc(cur)}. Palier suivant : <b>${esc(next.name)}</b> (${range}).</p>
+        ${both
+          ? `<p class="small muted">Tu fais déjà les deux à chaque séance.</p>
+            <div class="row wrap">
+              <button class="btn main sm" data-act="prop-up" data-ex="${exId}">Garder seulement ${esc(next.name)}</button>
+              <button class="btn quiet sm" data-act="prop-later" data-ex="${exId}">Garder les deux</button>
+            </div>`
+          : `<div class="menu">
+              <button data-act="prop-trans" data-ex="${exId}">${icon("plus")}<span>Faire les deux<small>Tu gardes ${esc(cur)}, ${esc(next.name)} s'ajoute à chaque séance</small></span></button>
+              <button data-act="prop-up" data-ex="${exId}">${icon("up")}<span>Remplacer<small>${esc(next.name)} prend la place de ${esc(cur)}</small></span></button>
+              <button data-act="prop-later" data-ex="${exId}">${icon("timer")}<span>Pas encore<small>On garde ce palier, la question reviendra</small></span></button>
+            </div>`}
       </div>`;
     })
     .join("");
@@ -130,11 +137,11 @@ export const actions = {
   },
   "prop-trans"(el) {
     store.setTransition(el.dataset.ex, true);
-    toast("Ajouté en plus à chaque séance");
+    toast("Les deux à chaque séance");
   },
   "prop-later"(el) {
     store.dismissProposal(el.dataset.ex);
-    toast("On garde ce palier. La question reviendra.");
+    toast("On garde comme ça. La question reviendra.");
   },
 };
 export { RUN };

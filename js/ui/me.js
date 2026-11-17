@@ -1,7 +1,7 @@
 // Onglet Moi : chiffres clés, progrès par paliers, faits marquants, poids, historique.
 import { addDays, mondayOf, parseYmd, prettyDate, shortDate, today, ymd } from "../core/dates.js";
 import { activity } from "../core/catalog.js";
-import { hasLadder, levelOf } from "../core/model.js";
+import { extrasOf, hasLadder, levelOf } from "../core/model.js";
 import { datesOf, deltas, exercisePoints, keyFigures, milestones, setsText } from "../core/stats.js";
 import { fmtKm, fmtPace, paceOf } from "../core/run.js";
 import { AVATAR_MAX } from "../core/share.js";
@@ -17,26 +17,23 @@ const open = new Set(); // exercices dépliés dans Progrès
 // ---------- Progrès ----------
 function ladderRow(state, ex) {
   const lvl = levelOf(state, ex);
-  const pr = state.progress[ex.id] || {};
   const path = ex.ladder.map((_, k) => `${k ? `<u class="${k <= lvl ? "done" : ""}"></u>` : ""}<b class="${k < lvl ? "done" : k === lvl ? "here" : ""}"></b>`).join("");
   let detail = "";
   if (open.has(ex.id)) {
     const next = ex.ladder[lvl + 1];
+    const extras = extrasOf(state, ex);
     const pts = exercisePoints(state, ex.id);
     const last = state.sessions
       .flatMap((s) => s.entries.filter((e) => e.exId === ex.id).map((e) => ({ date: s.date, e })))
       .slice(-4)
       .reverse();
-    detail = `<div class="steps">${ex.ladder.map((k, i) => `<span class="${i < lvl ? "past" : i === lvl ? "on" : ""}">${i + 1}. ${esc(k.name)} · ${k.min} à ${k.max} ${unitLabel(k.unit)}${i === lvl ? " · tu es ici" : ""}</span>`).join("")}</div>
+    detail = `<div class="steps">${ex.ladder.map((k, i) => `<span class="${i < lvl ? "past" : i === lvl ? "on" : ""}">${i + 1}. ${esc(k.name)} · ${k.min} à ${k.max} ${unitLabel(k.unit)}${i === lvl ? " · tu es ici" : extras.includes(i) ? " · en plus" : ""}</span>`).join("")}</div>
       <div class="pair">
         <button class="btn quiet" data-act="m-step" data-ex="${ex.id}" data-d="-1" ${lvl === 0 ? "disabled" : ""}>Reculer d'un pas</button>
         <button class="btn quiet" data-act="m-step" data-ex="${ex.id}" data-d="1" ${!next ? "disabled" : ""}>Avancer d'un pas</button>
       </div>
-      ${next
-        ? pr.transition
-          ? `<p class="small muted">En transition vers ${esc(next.name)} depuis le ${esc(prettyDate(pr.transition))} : ajouté en plus à chaque séance.</p><button class="link" data-act="m-trans" data-ex="${ex.id}" data-on="">Arrêter la transition</button>`
-          : `<button class="link" data-act="m-trans" data-ex="${ex.id}" data-on="1">Commencer ${esc(next.name)} progressivement</button>`
-        : ""}
+      ${extras.map((j) => `<p class="small muted">${esc(ex.ladder[j].name)} : en plus à chaque séance.</p><button class="link" data-act="m-also" data-ex="${ex.id}" data-level="${j}">Ne plus faire ${esc(ex.ladder[j].name)} en plus</button>`).join("")}
+      ${next && !extras.includes(lvl + 1) ? `<button class="link" data-act="m-trans" data-ex="${ex.id}" data-on="1">Faire aussi ${esc(next.name)} à chaque séance</button>` : ""}
       ${pts.length > 1 ? `<p class="small muted">Total par séance</p>${lineChart(pts, { label: `Total par séance, ${ex.name}` })}` : ""}
       ${last.length ? `<div>${last.map(({ date, e }) => `<div class="item"><span class="when">${esc(shortDate(date))}</span><span class="grow muted">${esc(e.name)}</span><b class="num">${esc(setsText(e.sets, e.loaded))}</b></div>`).join("")}</div>` : ""}`;
   }
@@ -238,9 +235,13 @@ export const actions = {
     const step = store.stepMove(el.dataset.ex, +el.dataset.d);
     if (step) toast(`Palier : ${step.name}`);
   },
+  "m-also"(el) {
+    store.setAlso(el.dataset.ex, +el.dataset.level, false);
+    toast("Retiré des paliers en plus");
+  },
   "m-trans"(el) {
     store.setTransition(el.dataset.ex, !!el.dataset.on);
-    toast(el.dataset.on ? "Ajouté en plus à chaque séance" : "Transition arrêtée");
+    toast(el.dataset.on ? "Ajouté en plus à chaque séance" : "Retiré");
   },
   "w-add"() {
     const kg = parseFloat(($("#wkg").value || "").replace(",", "."));

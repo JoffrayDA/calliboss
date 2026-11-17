@@ -19,7 +19,7 @@ export function emptyState() {
     settings: { activities: ["cali", "run"], goals: { cali: 3, run: 2, muscu: 3 }, shareWeight: true, lastProgram: {}, place: "parc" },
     profile: { avatar: "" },
     programs: [],
-    progress: {}, // exId -> { step: stepId, transition: date | null }
+    progress: {}, // exId -> { step: stepId, transition: date | null, also: [stepId] } (also : paliers faits en plus à chaque séance)
     progressLog: [], // { date, exId, stepId, name }
     proposals: [], // exIds prêts pour le palier suivant, en attente de réponse
     sessions: [],
@@ -54,6 +54,15 @@ export function levelOf(state, ex) {
   const i = pr ? ex.ladder.findIndex((k) => k.id === pr.step) : -1;
   return i < 0 ? 0 : i;
 }
+// Paliers faits en plus du palier actuel à chaque séance (rangs triés). La transition = le palier suivant en plus.
+export function extrasOf(state, ex) {
+  if (!hasLadder(ex)) return [];
+  const pr = state.progress[ex.id] || {};
+  const lvl = levelOf(state, ex);
+  const ids = new Set(pr.also || []);
+  if (pr.transition && ex.ladder[lvl + 1]) ids.add(ex.ladder[lvl + 1].id);
+  return ex.ladder.map((k, i) => (ids.has(k.id) && i !== lvl ? i : -1)).filter((i) => i >= 0);
+}
 // Ce qu'on fait vraiment à ce palier : variante maison si demandée et disponible.
 export function stepView(step, home) {
   if (home && step.alt) return { ...step.alt, id: step.id, home: true };
@@ -74,7 +83,7 @@ export function setsCount(program, ex) {
   return program.layout === "circuit" ? program.rounds || 3 : ex.sets || 3;
 }
 
-// Brouillon d'une séance à partir d'un programme. En transition, le palier suivant est ajouté d'office.
+// Brouillon d'une séance à partir d'un programme. Les paliers « en plus » sont ajoutés d'office.
 export function draftFrom(state, program, date, place) {
   const home = place === "maison";
   const entries = [];
@@ -82,8 +91,7 @@ export function draftFrom(state, program, date, place) {
     const lvl = levelOf(state, ex);
     const n = setsCount(program, ex);
     entries.push(entryFor(ex, lvl, home, n));
-    const pr = state.progress[ex.id];
-    if (hasLadder(ex) && pr && pr.transition && lvl < ex.ladder.length - 1) entries.push(entryFor(ex, lvl + 1, home, n, "extra"));
+    extrasOf(state, ex).forEach((j) => entries.push(entryFor(ex, j, home, n, "extra")));
   });
   return {
     id: newId("s"),

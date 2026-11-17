@@ -1,7 +1,7 @@
 // Écran Séance : une carte par exercice, séries libres, charges, crayon, ressenti à la validation.
 import { prettyDate, today } from "../core/dates.js";
 import { activity } from "../core/catalog.js";
-import { filled, findExercise, findProgram, levelOf, stepView } from "../core/model.js";
+import { extrasOf, filled, findExercise, findProgram, levelOf, stepView } from "../core/model.js";
 import { lastPerf, setsText } from "../core/stats.js";
 import * as store from "../store.js";
 import { $, closeSheet, esc, fr, nav, openSheet, startRest, stopRest, toast, unitLabel } from "./dom.js";
@@ -35,6 +35,15 @@ function checkList(d, p, when) {
     .join("")}</div>`;
 }
 
+// Bouton palier sur la carte : le palier se choisit ici, pas dans le crayon.
+function stepButton(state, d, e, i) {
+  const ex = e.exId && !e.tag ? findExercise(state, e.exId) : null;
+  if (!ex || !ex.ladder || ex.ladder.length < 2 || !d.programId) return "";
+  const lvl = levelOf(state, ex);
+  const more = extrasOf(state, ex).length;
+  return `<button class="steppick" data-act="steps" data-e="${i}">${icon("steps")}<span>Palier ${lvl + 1} sur ${ex.ladder.length}${more ? ` · ${more} en plus` : ""}</span><b>Changer</b></button>`;
+}
+
 function entryCard(state, d, e, i) {
   const last = lastPerf(state, e, d.id);
   const unit = unitLabel(e.unit);
@@ -53,7 +62,8 @@ function entryCard(state, d, e, i) {
     .join("");
   return `<div class="block" data-entry="${i}">
     <div class="row"><div class="grow"><h2>${esc(e.name)}</h2>${tags ? `<p>${tags}</p>` : ""}${hint ? `<p class="small muted">${esc(hint)}</p>` : ""}
-      ${last ? `<p class="small muted">Dernière fois (${esc(prettyDate(last.date))}) : <b>${esc(setsText(last.sets, last.loaded))}</b></p>` : ""}</div>
+      ${last ? `<p class="small muted">Dernière fois (${esc(prettyDate(last.date))}) : <b>${esc(setsText(last.sets, last.loaded))}</b></p>` : ""}
+      ${stepButton(state, d, e, i)}</div>
       <button class="iconbtn" data-act="edit" data-e="${i}" aria-label="Modifier ${esc(e.name)}">${icon("pen")}</button></div>
     ${rows}
     ${e.note ? `<p class="quote">${esc(e.note)}</p>` : ""}
@@ -117,14 +127,11 @@ export const changes = {
 function editSheet(i) {
   const d = draft();
   const e = d.entries[i];
-  const ex = e.exId ? findExercise(store.getState(), e.exId) : null;
-  const ladder = ex && ex.ladder && !e.tag;
   openSheet(`<h2>${esc(e.name)}</h2><div class="menu">
     <button data-act="s-rename" data-e="${i}">${icon("pen")}<span>Renommer<small>${e.exId ? "Le nom change partout, l'historique est conservé" : "Pour cette séance"}</small></span></button>
     <button data-act="s-count" data-e="${i}">${icon("rows")}<span>Nombre de ${d.layout === "circuit" ? "tours" : "séries"}</span></button>
     <button data-act="s-note" data-e="${i}">${icon("note")}<span>${e.note ? "Modifier la note" : "Ajouter une note"}</span></button>
     ${e.exId ? `<button data-act="s-swap" data-e="${i}">${icon("swap")}<span>Remplacer pour aujourd'hui<small>Le programme ne change pas</small></span></button>` : ""}
-    ${ladder ? `<button data-act="s-steps" data-e="${i}">${icon("steps")}<span>Faire aussi un autre palier</span></button>` : ""}
     <button data-act="s-remove" data-e="${i}">${icon("trash")}<span>Retirer de cette séance</span></button>
   </div><button class="btn quiet wide" data-act="close">Fermer</button>`);
 }
@@ -204,21 +211,56 @@ export const actions = {
     store.draftNote(+el.dataset.e, $("#note-in").value.trim().slice(0, 300));
     closeSheet();
   },
-  "s-steps"(el) {
+  // Liste des paliers : le tien, ceux en plus, les autres. Toucher un palier ouvre ce qu'on peut en faire.
+  steps(el) {
     const state = store.getState();
     const d = draft();
     const e = d.entries[+el.dataset.e];
     const ex = findExercise(state, e.exId);
+    if (!ex) return;
     const lvl = levelOf(state, ex);
-    const taken = new Set(d.entries.filter((x) => x.exId === ex.id).map((x) => x.stepId));
+    const also = new Set(extrasOf(state, ex));
+    const inDraft = new Set(d.entries.filter((x) => x.exId === ex.id).map((x) => x.stepId));
     const rows = ex.ladder
-      .map((k, j) => ({ k: stepView(k, d.place === "maison"), j }))
-      .filter(({ k }) => !taken.has(k.id))
-      .map(({ k, j }) => `<button data-act="s-steps-ok" data-ex="${ex.id}" data-level="${j}">${icon(j > lvl ? "up" : "down")}<span>${esc(k.name)}<small>${k.min} à ${k.max} ${unitLabel(k.unit)}</small></span></button>`)
+      .map((k, j) => {
+        const v = stepView(k, d.place === "maison");
+        const state_ = j === lvl ? "Ton palier" : also.has(j) ? "En plus à chaque séance" : inDraft.has(k.id) ? "En plus aujourd'hui" : "";
+        return `<button data-act="step-pick" data-ex="${ex.id}" data-level="${j}" ${j === lvl ? 'aria-current="true"' : ""}><span class="stepno ${j === lvl ? "on" : also.has(j) ? "also" : ""}">${j + 1}</span><span class="grow">${esc(v.name)}<small>${v.min} à ${v.max} ${unitLabel(v.unit)}${state_ ? ` · ${state_}` : ""}</small></span></button>`;
+      })
       .join("");
-    openSheet(`<h2>Faire aussi un autre palier</h2><div class="menu">${rows || `<p class="small muted">Tous les paliers sont déjà dans la séance.</p>`}</div><button class="btn quiet wide" data-act="close">Fermer</button>`);
+    openSheet(`<h2>${esc(ex.name)} : paliers</h2><p class="small muted">Touche un palier pour le choisir comme le tien, ou pour le faire en plus.</p><div class="menu">${rows}</div><button class="btn quiet wide" data-act="close">Fermer</button>`);
   },
-  "s-steps-ok"(el) {
+  "step-pick"(el) {
+    const state = store.getState();
+    const d = draft();
+    const ex = findExercise(state, el.dataset.ex);
+    const j = +el.dataset.level;
+    const lvl = levelOf(state, ex);
+    if (j === lvl) return toast("C'est déjà ton palier");
+    const cur = stepView(ex.ladder[lvl], d.place === "maison").name;
+    const v = stepView(ex.ladder[j], d.place === "maison");
+    const also = extrasOf(state, ex).includes(j);
+    const today_ = d.entries.some((x) => x.exId === ex.id && x.stepId === ex.ladder[j].id);
+    const a = `data-ex="${ex.id}" data-level="${j}"`;
+    openSheet(`<h2>${esc(v.name)}</h2><p class="small muted">Palier ${j + 1} sur ${ex.ladder.length} · ${v.min} à ${v.max} ${unitLabel(v.unit)}</p><div class="menu">
+      <button data-act="step-set" ${a}>${icon(j > lvl ? "up" : "down")}<span>${j > lvl ? "Passer" : "Revenir"} à ce palier<small>Il remplace ${esc(cur)} dans le programme</small></span></button>
+      ${also
+        ? `<button data-act="step-also" ${a} data-on="">${icon("minus")}<span>Ne plus le faire en plus<small>Tu gardes seulement ${esc(cur)}</small></span></button>`
+        : `<button data-act="step-also" ${a} data-on="1">${icon("plus")}<span>Faire les deux à chaque séance<small>Tu gardes ${esc(cur)}, celui-ci s'ajoute en plus</small></span></button>`}
+      ${!also && !today_ ? `<button data-act="step-today" ${a}>${icon("timer")}<span>En plus, juste aujourd'hui<small>Le programme ne change pas</small></span></button>` : ""}
+    </div><button class="btn quiet wide" data-act="close">Fermer</button>`);
+  },
+  "step-set"(el) {
+    const step = store.stepTo(el.dataset.ex, +el.dataset.level);
+    closeSheet();
+    if (step) toast(`Ton palier : ${step.name}`);
+  },
+  "step-also"(el) {
+    store.setAlso(el.dataset.ex, +el.dataset.level, !!el.dataset.on);
+    closeSheet();
+    toast(el.dataset.on ? "Ajouté en plus à chaque séance" : "Retiré des paliers en plus");
+  },
+  "step-today"(el) {
     store.draftAddStep(el.dataset.ex, +el.dataset.level);
     closeSheet();
   },

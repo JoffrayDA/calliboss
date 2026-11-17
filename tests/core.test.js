@@ -5,7 +5,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { migrateV1, upgrade, isV1, topUpFromV1, V1_PROGRAM_ID } from "../js/core/migrate.js";
-import { draftFrom, sessionFrom, findProgram, copyProgram, programFromSession, levelOf, sanitizeProgram } from "../js/core/model.js";
+import { draftFrom, extrasOf, sessionFrom, findProgram, copyProgram, programFromSession, levelOf, sanitizeProgram } from "../js/core/model.js";
 import { starterState, TEMPLATES, instantiate } from "../js/core/catalog.js";
 import { readyForNext, deltas, milestones, weekProgress, lastPerf, setsText } from "../js/core/stats.js";
 import { runLimit, runWarnings } from "../js/core/run.js";
@@ -161,6 +161,13 @@ test("paliers : proposition après deux séances au max, transition ajoutée d'o
   assert.equal(d.entries[1].name, "Tractions négatives");
   const home = draftFrom(s, p, "2026-10-05", "maison");
   assert.equal(home.entries[0].name, "Superman au sol");
+  // Paliers en plus : n'importe lesquels, dans l'ordre de l'échelle, sans doubler le palier actuel.
+  const ex = p.exercises[0];
+  s.progress[ex.id] = { step: ex.ladder[1].id, transition: null, also: [ex.ladder[3].id, ex.ladder[0].id, ex.ladder[1].id] };
+  assert.deepEqual(extrasOf(s, ex), [0, 3]);
+  const both = draftFrom(s, p, "2026-10-07", "parc").entries.filter((e) => e.exId === ex.id);
+  assert.deepEqual(both.map((e) => e.stepId), [ex.ladder[1].id, ex.ladder[0].id, ex.ladder[3].id]);
+  assert.deepEqual(both.map((e) => e.tag), ["", "extra", "extra"]);
 });
 
 test("semaine, course, partage", () => {
